@@ -1,88 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Coding Agent</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #0f172a;
-        color: white;
-      }
-      .container {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 32px 20px;
-      }
-      .card {
-        background: rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 24px;
-      }
-      textarea {
-        width: 100%;
-        min-height: 120px;
-        border-radius: 12px;
-        padding: 14px;
-        border: 1px solid rgba(255,255,255,0.1);
-        background: rgba(255,255,255,0.04);
-        color: white;
-      }
-      button {
-        margin-top: 12px;
-        background: #4f46e5;
-        color: white;
-        padding: 12px 18px;
-        border: none;
-        border-radius: 10px;
-        cursor: pointer;
-      }
-      #result {
-        margin-top: 24px;
-        white-space: pre-wrap;
-        background: rgba(255,255,255,0.03);
-        border-radius: 12px;
-        padding: 20px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Coding Agent</h1>
-      <div class="card">
-        <textarea id="prompt" placeholder="Describe the app or page you want to generate...">Create a login page with email and password fields and a sign-in button</textarea>
-        <button id="send">Generate</button>
-        <div id="result"></div>
-      </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coding Agent Workspace</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #e5e7eb; }
+    .shell { max-width: 1100px; margin: auto; padding: 28px 18px; }
+    .grid { display: grid; grid-template-columns: 1.3fr .7fr; gap: 18px; }
+    .card { background: #111827; border: 1px solid #263244; border-radius: 14px; padding: 18px; }
+    textarea { width: 100%; min-height: 120px; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #0b1220; color: inherit; }
+    button, a.button { display: inline-block; margin-top: 12px; padding: 10px 14px; border: 0; border-radius: 8px; background: #4f46e5; color: white; text-decoration: none; cursor: pointer; }
+    button.secondary { background: #334155; }
+    pre { max-height: 460px; overflow: auto; white-space: pre-wrap; background: #0b1220; padding: 12px; border-radius: 8px; }
+    .project { border-top: 1px solid #263244; padding: 12px 0; }
+    .muted { color: #94a3b8; font-size: .9rem; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Coding Agent Workspace</h1>
+    <p class="muted">Generate a project, inspect its files, and download a ZIP archive.</p>
+    <div class="grid">
+      <section class="card">
+        <h2>New project</h2>
+        <textarea id="prompt">Create a login page with email and password fields and a sign-in button</textarea>
+        <br /><button id="generate">Generate project</button>
+        <pre id="result">Ready.</pre>
+      </section>
+      <aside class="card">
+        <h2>Saved projects</h2>
+        <button class="secondary" id="refresh">Refresh</button>
+        <div id="projects" class="muted">Loading...</div>
+      </aside>
     </div>
-
-    <script>
-      const promptEl = document.getElementById('prompt');
-      const sendBtn = document.getElementById('send');
-      const resultEl = document.getElementById('result');
-
-      sendBtn.addEventListener('click', async function () {
-        const text = promptEl.value.trim();
-        if (!text) return;
-
-        resultEl.textContent = 'Generating...';
-
-        try {
-          const response = await fetch('http://localhost:8000/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text })
-          });
-
-          const data = await response.json();
-          resultEl.textContent = JSON.stringify(data, null, 2);
-        } catch (error) {
-          resultEl.textContent = 'Error: ' + error.message + '\nThe backend server may not be running yet.';
-        }
-      });
-    </script>
-  </body>
+  </main>
+  <script>
+    const result = document.getElementById('result');
+    const projects = document.getElementById('projects');
+    async function loadProjects() {
+      const response = await fetch('/api/projects');
+      const data = await response.json();
+      projects.innerHTML = data.projects.length ? data.projects.map(project => `
+        <div class="project"><strong>${project.id}</strong><br />
+        <span class="muted">${project.files.length} files · ${project.created_at}</span><br />
+        <a class="button" href="/api/projects/${project.id}/download">Download ZIP</a>
+        <button class="secondary" onclick="inspectProject('${project.id}')">Inspect</button></div>`).join('') : 'No projects yet.';
+    }
+    async function inspectProject(id) {
+      const response = await fetch('/api/projects/' + id);
+      result.textContent = JSON.stringify(await response.json(), null, 2);
+    }
+    document.getElementById('refresh').onclick = loadProjects;
+    document.getElementById('generate').onclick = async () => {
+      const prompt = document.getElementById('prompt').value.trim();
+      if (!prompt) return;
+      result.textContent = 'Generating and writing project files...';
+      const response = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: prompt}) });
+      const data = await response.json();
+      result.textContent = JSON.stringify(data, null, 2);
+      await loadProjects();
+    };
+    loadProjects();
+  </script>
+</body>
 </html>
